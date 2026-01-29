@@ -1,103 +1,75 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-from urllib.parse import quote
 
-# Configuração e Estilo Visual (AZUL ESCURO + FONTE 45PX)
-st.set_page_config(page_title="CONTROLE DE COMBUSTÍVEL PRO", layout="wide")
+# 1. ESTILO VISUAL: FUNDO AZUL ESCURO + LETRAS GIGANTES (45PX)
+st.set_page_config(page_title="Forecast Fevereiro", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #001f3f !important; } /* Fundo Azul Escuro */
-    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3 { 
+    /* Fundo azul escuro em toda a tela */
+    .main { background-color: #001f3f !important; }
+    
+    /* Configuração da Fonte 45px em Branco */
+    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, div { 
         color: #FFFFFF !important; 
         font-size: 45px !important; 
-        font-weight: bold;
         font-family: 'Arial Black', sans-serif;
+        font-weight: bold;
     }
-    /* Estilo dos Cards de Dados */
-    div[data-testid="stMetric"] {
-        background-color: #003366;
-        border: 2px solid #0074D9;
-        border-radius: 15px;
-    }
+    
+    /* Ajuste para o gráfico não ficar com legenda pequena */
+    .legendtext { font-size: 25px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# URL da Planilha
-SHEET_ID = '14cRIHelvGZDUcQGcaH2ieBVvl5t36rCPfU2ulmPto8c'
-url = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={quote("Programação")}'
+# 2. CABEÇALHO SOLICITADO
+st.write("Forecast de consumo para Fevereiro")
+st.markdown("---")
 
-def fix_val(v):
-    if pd.isna(v): return 0
-    s = str(v).replace('R$', '').replace('.', '').replace(',', '.').strip()
-    try: return float(s)
-    except: return 0
+# 3. DADOS DO CONSUMO POR EMPURRADOR
+dados = {
+    'EM': ['CUMARU', 'IPE', 'JATOBA', 'AROEIRA', 'SAMAUAMA', 'ANGICO', 'LUIZ FELIPE', 'JACARANDA', 'CAJERANA', 'QUARUBA'],
+    'LITROS': [81628.8, 45777.6, 37804.8, 37804.8, 35706.0, 33079.2, 28934.4, 19588.8, 19588.8, 8395.2],
+    'REAIS': [485115.84, 241005.60, 198002.64, 198002.64, 186028.26, 191859.36, 167819.52, 115643.88, 115699.85, 60445.44]
+}
 
-@st.cache_data(ttl=30)
-def get_data():
-    df = pd.read_csv(url, header=None)
-    # Tabela Unidades (Colunas A, B, C)
-    emp = df.iloc[2:12, [0, 1, 2]].copy()
-    emp.columns = ['EM', 'LITS', 'REAIS']
-    # Tabela Ciclo (Pega as linhas 15 a 18 das colunas A, B, C ou similares)
-    cic = df.iloc[14:18, [0, 1, 2]].copy()
-    cic.columns = ['CICLO', 'LITS', 'REAIS']
-    
-    for d in [emp, cic]:
-        d.iloc[:, 1] = d.iloc[:, 1].apply(fix_val)
-        d.iloc[:, 2] = d.iloc[:, 2].apply(fix_val)
-    return emp, cic
+df = pd.DataFrame(dados)
 
-try:
-    df_emp, df_cic = get_data()
+# 4. GRÁFICO EXPOSITIVO (BARRAS + LINHA CONTÁBIL)
+fig = go.Figure()
 
-    # --- TÍTULO 1 ---
-    st.write("⚓ CONSUMO POR EMPURRADOR")
+# Barras para Litros (Ciano)
+fig.add_trace(go.Bar(
+    x=df['EM'], 
+    y=df['LITROS'], 
+    name='LITROS',
+    marker_color='#00FFFF', # Ciano
+    text=df['LITROS'],
+    textposition='outside',
+    textfont=dict(size=20, color="white")
+))
 
-    # GRÁFICO MISTO: BARRAS (LITROS) + LINHA (CONTÁBIL)
-    fig1 = go.Figure()
-    # Barras Coloridas (Litros)
-    fig1.add_trace(go.Bar(
-        x=df_emp['EM'], y=df_emp['LITS'], name='Litros',
-        marker_color='cyan', text=df_emp['LITS'], textposition='outside'
-    ))
-    # Linha Amarela (Custo Contábil)
-    fig1.add_trace(go.Scatter(
-        x=df_emp['EM'], y=df_emp['REAIS'], name='Custo R$',
-        line=dict(color='yellow', width=8), mode='lines+markers+text'
-    ))
-    
-    fig1.update_layout(
-        template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        height=800, font=dict(size=18), showlegend=True
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+# Linha para Custo Contábil (Amarelo)
+fig.add_trace(go.Scatter(
+    x=df['EM'], 
+    y=df['REAIS'], 
+    name='R$ CONTÁBIL',
+    line=dict(color='#FFFF00', width=10), # Amarelo Neon Grosso
+    mode='lines+markers',
+    marker=dict(size=15)
+))
 
-    st.markdown("---")
+# Ajustes de Layout do Gráfico
+fig.update_layout(
+    template="plotly_dark",
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    height=800,
+    showlegend=True,
+    legend=dict(font=dict(size=25)),
+    xaxis=dict(tickfont=dict(size=20)),
+    yaxis=dict(tickfont=dict(size=20), title="Volume / Valor")
+)
 
-    # --- TÍTULO 2 ---
-    st.write("📅 PREVISTO CICLO FEVEREIRO")
-
-    c_left, c_right = st.columns(2)
-
-    with c_left:
-        # PIZZA PARA VOLUME (LITROS)
-        st.write("🍕 VOLUME POR CICLO")
-        fig_p = px.pie(df_cic, values='LITS', names='CICLO', color_discrete_sequence=px.colors.qualitative.Set1)
-        fig_p.update_traces(textinfo='percent+label', textfont_size=25)
-        fig_p.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_p, use_container_width=True)
-
-    with c_right:
-        # LINHA PARA CONTÁBIL (R$)
-        st.write("📈 TENDÊNCIA CONTÁBIL")
-        fig_l = px.line(df_cic, x='CICLO', y='REAIS', markers=True)
-        fig_l.update_traces(line=dict(color='#00FF00', width=10), marker=dict(size=20))
-        fig_l.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_l, use_container_width=True)
-
-except Exception as e:
-    st.error("ERRO NOS DADOS!")
-    st.write(e)
+st.plotly_chart(fig, use_container_width=True)
