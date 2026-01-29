@@ -59,3 +59,4 @@ with c2:
     fig3.update_traces(line=dict(color='#00ff44', width=12), marker=dict(size=20, color="white"))
     fig3.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(size=20))
     st.plotly_chart(fig3, use_container_width=True)
+    
