@@ -4,88 +4,100 @@ import plotly.express as px
 import plotly.graph_objects as go
 from urllib.parse import quote
 
-# Configuração da página e Estilo Visual (Fundo Azul Escuro e Letras 45px)
-st.set_page_config(page_title="Dashboard Combustível PRO", layout="wide")
+# Configuração e Estilo Visual (AZUL ESCURO + FONTE 45PX)
+st.set_page_config(page_title="CONTROLE DE COMBUSTÍVEL PRO", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #001f3f; } /* Azul Escuro */
+    .main { background-color: #001f3f !important; } /* Fundo Azul Escuro */
     html, body, [class*="css"], .stMarkdown, p, h1, h2, h3 { 
-        color: white !important; 
+        color: #FFFFFF !important; 
         font-size: 45px !important; 
+        font-weight: bold;
         font-family: 'Arial Black', sans-serif;
     }
-    /* Ajuste para que os valores dos gráficos não sumam com o tamanho da fonte */
-    .plotly-graph-div { font-size: 14px !important; } 
+    /* Estilo dos Cards de Dados */
+    div[data-testid="stMetric"] {
+        background-color: #003366;
+        border: 2px solid #0074D9;
+        border-radius: 15px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# URL da Planilha Google
+# URL da Planilha
 SHEET_ID = '14cRIHelvGZDUcQGcaH2ieBVvl5t36rCPfU2ulmPto8c'
 url = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={quote("Programação")}'
 
-def limpar(v):
+def fix_val(v):
     if pd.isna(v): return 0
-    s = str(v).replace('R$', '').replace('Lts', '').replace('.', '').replace(',', '.').strip()
+    s = str(v).replace('R$', '').replace('.', '').replace(',', '.').strip()
     try: return float(s)
     except: return 0
 
-@st.cache_data(ttl=60)
-def load_data():
+@st.cache_data(ttl=30)
+def get_data():
     df = pd.read_csv(url, header=None)
-    # Tabela Empurradores (Colunas A, B, C)
+    # Tabela Unidades (Colunas A, B, C)
     emp = df.iloc[2:12, [0, 1, 2]].copy()
-    emp.columns = ['EM', 'LITROS', 'REAIS']
-    # Tabela Ciclo Fevereiro (Colunas F, G, H, I, J das linhas 2 e 3)
-    cic_lits = df.iloc[2, 5:9].apply(limpar).tolist() # Volume
-    cic_reais = df.iloc[3, 5:9].apply(limpar).tolist() # Contábil
-    cic_nomes = ['Ciclo 1', 'Ciclo 2', 'Ciclo 3', 'Ciclo 4']
+    emp.columns = ['EM', 'LITS', 'REAIS']
+    # Tabela Ciclo (Pega as linhas 15 a 18 das colunas A, B, C ou similares)
+    cic = df.iloc[14:18, [0, 1, 2]].copy()
+    cic.columns = ['CICLO', 'LITS', 'REAIS']
     
-    emp['LITROS'] = emp['LITROS'].apply(limpar)
-    emp['REAIS'] = emp['REAIS'].apply(limpar)
-    
-    return emp, pd.DataFrame({'CICLO': cic_nomes, 'LITROS': cic_lits, 'REAIS': cic_reais})
+    for d in [emp, cic]:
+        d.iloc[:, 1] = d.iloc[:, 1].apply(fix_val)
+        d.iloc[:, 2] = d.iloc[:, 2].apply(fix_val)
+    return emp, cic
 
 try:
-    df_em, df_cic = load_data()
+    df_emp, df_cic = get_data()
 
-    st.write("⛽ CONSUMO POR EMPURRADOR")
+    # --- TÍTULO 1 ---
+    st.write("⚓ CONSUMO POR EMPURRADOR")
 
-    # 1. Gráfico Misto: Barras (Litros) + Linha (Custo)
+    # GRÁFICO MISTO: BARRAS (LITROS) + LINHA (CONTÁBIL)
     fig1 = go.Figure()
-    # Adiciona Barras para Litros
-    fig1.add_trace(go.Bar(x=df_em['EM'], y=df_em['LITROS'], name='Litros', 
-                          marker_color='cyan', text=df_em['LITROS'], textposition='auto'))
-    # Adiciona Linha para Custo (TT REIAS)
-    fig1.add_trace(go.Scatter(x=df_em['EM'], y=df_em['REAIS'], name='Custo (R$)', 
-                              line=dict(color='yellow', width=6), mode='lines+markers'))
+    # Barras Coloridas (Litros)
+    fig1.add_trace(go.Bar(
+        x=df_emp['EM'], y=df_emp['LITS'], name='Litros',
+        marker_color='cyan', text=df_emp['LITS'], textposition='outside'
+    ))
+    # Linha Amarela (Custo Contábil)
+    fig1.add_trace(go.Scatter(
+        x=df_emp['EM'], y=df_emp['REAIS'], name='Custo R$',
+        line=dict(color='yellow', width=8), mode='lines+markers+text'
+    ))
     
-    fig1.update_layout(template="plotly_dark", paper_bgcolor='#001f3f', plot_bgcolor='#001f3f',
-                      height=700, showlegend=True)
+    fig1.update_layout(
+        template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        height=800, font=dict(size=18), showlegend=True
+    )
     st.plotly_chart(fig1, use_container_width=True)
 
     st.markdown("---")
-    st.write("📅 PREVISTO: CICLO DE FEVEREIRO")
 
-    col_a, col_b = st.columns(2)
+    # --- TÍTULO 2 ---
+    st.write("📅 PREVISTO CICLO FEVEREIRO")
 
-    with col_a:
-        # 2. Gráfico de Pizza para Volume (Litros)
-        st.write("🍕 Volume (Litros)")
-        fig_pie = px.pie(df_cic, values='LITROS', names='CICLO', 
-                         color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig_pie.update_layout(template="plotly_dark", paper_bgcolor='#001f3f')
-        fig_pie.update_traces(textinfo='percent+label', textfont_size=20)
-        st.plotly_chart(fig_pie, use_container_width=True)
+    c_left, c_right = st.columns(2)
 
-    with col_b:
-        # 3. Gráfico de Linha para Contábil (R$)
-        st.write("📈 Contábil (R$)")
-        fig_line = px.line(df_cic, x='CICLO', y='REAIS', markers=True)
-        fig_line.update_traces(line=dict(color='#00ff00', width=8), marker=dict(size=15))
-        fig_line.update_layout(template="plotly_dark", paper_bgcolor='#001f3f', plot_bgcolor='#001f3f')
-        st.plotly_chart(fig_line, use_container_width=True)
+    with c_left:
+        # PIZZA PARA VOLUME (LITROS)
+        st.write("🍕 VOLUME POR CICLO")
+        fig_p = px.pie(df_cic, values='LITS', names='CICLO', color_discrete_sequence=px.colors.qualitative.Set1)
+        fig_p.update_traces(textinfo='percent+label', textfont_size=25)
+        fig_p.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_p, use_container_width=True)
+
+    with c_right:
+        # LINHA PARA CONTÁBIL (R$)
+        st.write("📈 TENDÊNCIA CONTÁBIL")
+        fig_l = px.line(df_cic, x='CICLO', y='REAIS', markers=True)
+        fig_l.update_traces(line=dict(color='#00FF00', width=10), marker=dict(size=20))
+        fig_l.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_l, use_container_width=True)
 
 except Exception as e:
-    st.error("ERRO AO CARREGAR OS DADOS")
-    st.write(f"Detalhes: {e}")
+    st.error("ERRO NOS DADOS!")
+    st.write(e)
